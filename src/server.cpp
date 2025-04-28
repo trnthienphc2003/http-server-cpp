@@ -62,7 +62,7 @@ int main(int argc, char **argv) {
     return 1;
   }
 
-  char *get_head = "GET ";
+  char get_head[] = "GET ";
   char *buffer = new char[BUF_LEN];
   int bytes_received = recv(client, buffer, BUF_LEN, 0);
 
