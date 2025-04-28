@@ -7,6 +7,7 @@
 #include <sys/socket.h>
 #include <arpa/inet.h>
 #include <netdb.h>
+constexpr BUF_LEN = 1024;
 
 int main(int argc, char **argv) {
   // Flush after every std::cout / std::cerr
@@ -55,9 +56,42 @@ int main(int argc, char **argv) {
   
   int client = accept(server_fd, (struct sockaddr *) &client_addr, (socklen_t *) &client_addr_len);
   std::cout << "Client connected\n";
+
+  if (client < 0) {
+    std::cerr << "Failed to accept client connection\n";
+    return 1;
+  }
+
+  char *get_head = "GET ";
+  char *buffer = new char[BUF_LEN];
+  int bytes_received = recv(client, buffer, BUF_LEN, 0);
+
+  char *urlpath = new char[bytes_received + 1];
+  urlpath = strstr(buffer, get_head);
   
-  send(client, "HTTP/1.1 200 OK\r\n\r\n", 20, 0);
+  char delimiter[] = " ";
+  
+  char *path = new char[bytes_received + 1];
+  path = strtok(urlpath, delimiter);
+  path = strtok(NULL, delimiter);
+
+  if(strcmp(path, "/") == 0) {
+    std::cout << "Client requested index.html\n";
+    send(client, "HTTP/1.1 200 OK\r\n\r\n", 20, 0);
+  }
+
+  else {
+    std::cout << "Client requested something else\n";
+    send(client, "HTTP/1.1 404 Not Found\r\n\r\n", 27, 0);
+  }
+
+  
+  // send(client, "HTTP/1.1 200 OK\r\n\r\n", 20, 0);
   close(server_fd);
+  delete []buffer;
+  delete []urlpath;
+  delete []path;  
+
 
   return 0;
 }
