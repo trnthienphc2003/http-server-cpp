@@ -7,7 +7,7 @@
 #include <sys/socket.h>
 #include <arpa/inet.h>
 #include <netdb.h>
-constexpr BUF_LEN = 1024;
+constexpr int BUF_LEN = 1024;
 
 int main(int argc, char **argv) {
   // Flush after every std::cout / std::cerr
