@@ -179,8 +179,8 @@ HTTP_Request HTTP_Server::parse_request(const std::string &raw) {
     for(int i = 1; i < (int)lines.size(); ++i) {
         size_t sep = lines[i].find(": ");
         if(sep == std::string::npos) {
-        // throw std::runtime_error("Invalid header");
-        continue;
+            // throw std::runtime_error("Invalid header");
+            continue;
         }
 
         request.headers[
@@ -189,10 +189,23 @@ HTTP_Request HTTP_Server::parse_request(const std::string &raw) {
     }
 
     if(
-        request.headers.find("Accept-Encoding") != request.headers.end() &&
-        request.headers["Accept-Encoding"] != "invalid-encoding"
+        request.headers.find("Accept-Encoding") != request.headers.end()
     ) {
-        request.encoding_scheme = request.headers["Accept-Encoding"];
+        request.encoding_scheme = "";
+        // Clean the header by removing spaces
+        request.headers["Accept-Encoding"].erase(
+            std::remove(request.headers["Accept-Encoding"].begin(), request.headers["Accept-Encoding"].end(), ' '),
+            request.headers["Accept-Encoding"].end()
+        );
+
+        std::istringstream encodings(request.headers["Accept-Encoding"]);
+        std::string encoding;
+        while(getline(encodings, encoding, ',')) {
+            if(encoding == "gzip") {
+                request.encoding_scheme = encoding;
+                break;
+            }
+        }
     }
 
     else {
