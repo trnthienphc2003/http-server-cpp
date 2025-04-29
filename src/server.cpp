@@ -83,30 +83,53 @@ void HTTP_Server::run() {
         struct sockaddr_in client_address;
         int client_address_len = sizeof(client_address);
         int client = accept(this->server_fd, (struct sockaddr *)&client_address, (socklen_t *)&client_address_len);
+        if(client < 0) continue;
 
         // Handle concurrency using thread
         std::thread([this, client]() {
-        // Reading requests
-        char buffer[BUF_LEN];
-        int bytes_received = recv(client, buffer, BUF_LEN, 0);
-        if(bytes_received <= 0) {
+            while(true) {
+                // Reading requests
+                char buffer[BUF_LEN];
+                int bytes_received = recv(client, buffer, BUF_LEN, 0);
+                if(bytes_received <= 0) {
+                    break;
+                }
+                std::string raw_request(buffer, static_cast<size_t>(bytes_received));
+
+                HTTP_Request request = parse_request(raw_request);
+                
+                bool keep_alive = false;
+                if(request.version == "HTTP/1.1") {
+                    auto it = request.headers.find("Connection");
+                    keep_alive = (it == request.headers.end() || it->second == "close");
+                }
+
+                else if(request.version == "HTTP/1.0") {
+                    auto it = request.headers.find("Connection");
+                    keep_alive = (it != request.headers.end() && it->second == "keep-alive");
+                }
+
+                HTTP_Response response = dispatch(request);
+                if(keep_alive) {
+                    response.headers["Connection"] = "keep-alive";
+                }
+
+                else {
+                    response.headers["Connection"] = "close";
+                }
+
+                std::string response_str = response.to_string();
+
+                // Send response
+                send(client, response_str.data(), response_str.size(), 0);
+                if(!keep_alive) break;
+            }
+            // Close the client socket
             close(client);
-            return;
-        }
-        std::string raw_request(buffer, static_cast<size_t>(bytes_received));
-
-        HTTP_Request request = parse_request(raw_request);
-        HTTP_Response response = dispatch(request);
-        std::string response_str = response.to_string();
-
-        // Send response
-        send(client, response_str.data(), response_str.size(), 0);
-        // Close the client socket
-        close(client);
         }).detach();
     }
-    }
-    std::optional<std::string> HTTP_Server::read_file_interface(const std::string& file_path) {
+}
+std::optional<std::string> HTTP_Server::read_file_interface(const std::string& file_path) {
     std::cout << "Reading file: " << file_path << "\n";
     return this->read_file(file_path);
 }
