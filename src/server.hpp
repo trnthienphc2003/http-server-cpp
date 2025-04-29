@@ -6,6 +6,8 @@
 #include <functional>       // std::function
 #include <optional>         // std::optional
 #include <arpa/inet.h>      // sockaddr_in, htons(), INADDR_ANY
+#include <filesystem>       // std::filesystem for path operations
+#include <stdexcept>        // std::runtime_error
 
 constexpr int BUF_LEN = 1024;
 constexpr int GZIP_BUF_LEN = 32768;
@@ -42,6 +44,9 @@ public:
     void route(const std::string &path_pattern, Handler handler);
     void save_file(const std::string &file_path, const std::string &content);
     std::optional<std::string> read_file_interface(const std::string& file_path);
+    
+    // Add path validation method to prevent directory traversal
+    std::string validate_file_path(const std::string& directory_root, const std::string& requested_path);
 private:
     int server_fd;
     struct sockaddr_in server_address;
@@ -49,7 +54,12 @@ private:
     HTTP_Request parse_request(const std::string &raw);
     HTTP_Response dispatch(const HTTP_Request &request);
     std::optional<std::string> read_file(const std::string &file_path);
+    
+    // Helper method to check if a path is inside a directory
+    bool is_path_inside_directory(const std::filesystem::path& path, const std::filesystem::path& directory);
+    
+    // New method to handle client connections with better error handling
+    void handle_client_connection(int client_fd, const sockaddr_in& client_address);
 };
     
-
 #endif
