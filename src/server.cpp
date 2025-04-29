@@ -74,10 +74,11 @@ int main(int argc, char **argv) {
   char *path = new char[bytes_received + 1];
   path = strtok(urlpath, delimiter);
   path = strtok(NULL, delimiter);
+  printf("Path: %s\n", path);
 
   if(strcmp(path, "/") == 0) {
     std::cout << "Client requested index.html\n";
-    send(client, "HTTP/1.1 200 OK\r\n\r\n", 20, 0);
+    send(client, "HTTP/1.1 200 OK\r\n\r\n", 20, 0); 
   }
 
   else {
