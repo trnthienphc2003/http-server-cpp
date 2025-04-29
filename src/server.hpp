@@ -6,11 +6,6 @@
 #include <functional>       // std::function
 #include <optional>         // std::optional
 #include <arpa/inet.h>      // sockaddr_in, htons(), INADDR_ANY
-// #include <fstream>          // std::ifstream
-// #include <sstream>          // std::istringstream
-// #include <cstring>
-// #include <thread>           // std::thread
-// #include <unistd.h>         // close()
 
 constexpr int BUF_LEN = 1024;
 enum class HTTP_STATUS_CODE{
@@ -25,6 +20,7 @@ struct HTTP_Request {
     std::string method, path, version;
     std::map<std::string, std::string> headers;
     std::string body;
+    std::string encoding_scheme;
 };
 
 struct HTTP_Response {

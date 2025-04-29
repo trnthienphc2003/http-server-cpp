@@ -19,6 +19,23 @@ int main(int argc, char **argv) {
 
         std::string msg = request.path.substr(6);
         // std::cout << "Message: " << msg << "\n";
+        if(request.encoding_scheme != "") {
+            return HTTP_Response {
+                (int)HTTP_STATUS_CODE::OK,
+                "OK",
+                {{
+                    "Content-Type", "text/plain"
+                },
+                {
+                    "Content-Encoding", request.encoding_scheme
+                },
+                {
+                    "Content-Length", std::to_string(msg.size())
+                }},
+                msg
+            };
+        }
+        
         return HTTP_Response {
             (int)HTTP_STATUS_CODE::OK,
             "OK",

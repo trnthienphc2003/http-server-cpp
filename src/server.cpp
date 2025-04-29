@@ -3,8 +3,8 @@
 #include <netinet/in.h>
 #include <thread>
 #include <fstream>
-#include <sstream>          // std::istringstream
 #include <cstring>
+#include <sstream>          // std::istringstream
 #include <thread>           // std::thread
 #include <unistd.h>         // close()
 
@@ -22,16 +22,16 @@ std::string HTTP_Response::to_string() const {
     }
 
     else {
-        response += "HTTP/1.1 " + std::to_string(status_code) + " " + status_message + "\r\n";
+        response = "HTTP/1.1 " + std::to_string(status_code) + " " + status_message + "\r\n";
         for(const auto &[key, value]: headers) {
-        response += key + ": " + value + "\r\n";
+            response += key + ": " + value + "\r\n";
         }
         response += "\r\n";
         response += body;
     }
 
     return response;
-    }
+}
 
     HTTP_Server::HTTP_Server(uint16_t port) {
     this->server_fd = socket(AF_INET, SOCK_STREAM, 0);
@@ -188,6 +188,16 @@ HTTP_Request HTTP_Server::parse_request(const std::string &raw) {
         ] = lines[i].substr(sep + 2);
     }
 
+    if(
+        request.headers.find("Accept-Encoding") != request.headers.end() &&
+        request.headers["Accept-Encoding"] != "invalid-encoding"
+    ) {
+        request.encoding_scheme = request.headers["Accept-Encoding"];
+    }
+
+    else {
+        request.encoding_scheme = "";
+    }
     return request;
 }
 HTTP_Response HTTP_Server::dispatch(const HTTP_Request &request) {
