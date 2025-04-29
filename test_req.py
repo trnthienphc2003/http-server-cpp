@@ -1,7 +1,7 @@
 import requests
 
 def test_get_request():
-    url = "http://localhost:4221/files/banana"
+    url = "http://localhost:4221/banana"
     response = requests.get(url, headers={
         "User-Agent": "foobar/1.2.3"
     },
