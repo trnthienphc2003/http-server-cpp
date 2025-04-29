@@ -134,6 +134,7 @@ int main(int argc, char **argv) {
         file_name = strtok(NULL, "/");
         printf("File name: %s\n", file_name);
         char *file_content = read_content_file(file_name);
+        printf("File content: %s\n", file_content);
         if(file_content) {
           std::string response = "HTTP/1.1 200 OK\r\nContent-Type: application/octet-stream\r\nContent-Length: " + std::to_string(strlen(file_content)) + "\r\n\r\n" + file_content;
           send(client, response.data(), response.size(), 0);
