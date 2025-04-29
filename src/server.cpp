@@ -9,6 +9,26 @@
 #include <netdb.h>
 constexpr int BUF_LEN = 1024;
 
+char *read_content_file(const char *filename) {
+  FILE *file = fopen(filename, "r");
+  if (file == nullptr) {
+    std::cerr << "Failed to open file: " << filename << std::endl;
+    return nullptr;
+  }
+  
+  fseek(file, 0, SEEK_END);
+  long file_size = ftell(file);
+  fseek(file, 0, SEEK_SET);
+  
+  char *buffer = new char[file_size + 1];
+  fread(buffer, 1, file_size, file);
+  buffer[file_size] = '\0';
+  
+  fclose(file);
+  
+  return buffer;
+}
+
 int main(int argc, char **argv) {
   // Flush after every std::cout / std::cerr
   std::cout << std::unitbuf;
@@ -112,7 +132,7 @@ int main(int argc, char **argv) {
         }
       }
 
-      else if(strncmp("/echo/", path, 6) == 0) {
+      else if(strncmp("/echo/", path, 5) == 0) {
         std::cout << "Client requested echo\n";
         char *echo_string = nullptr;
         echo_string = strtok(path, "/");
@@ -121,6 +141,24 @@ int main(int argc, char **argv) {
 
         std::string response = "HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: " + std::to_string(strlen(echo_string)) + "\r\n\r\n" + echo_string;
         send(client, response.data(), response.size(), 0);
+      }
+
+      else if(strncmp("/files/", path, 7) == 0) {
+        std::cout << "Client requested file\n";
+        char *file_name = nullptr;
+        file_name = strtok(path, "/");
+        file_name = strtok(NULL, "/");
+        printf("File name: %s\n", file_name);
+
+        char *file_content = read_content_file(file_name);
+        if(file_content) {
+          std::string response = "HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: " + std::to_string(strlen(file_content)) + "\r\n\r\n" + file_content;
+          send(client, response.data(), response.size(), 0);
+        }
+
+        else {
+          send(client, "HTTP/1.1 404 Not Found\r\n\r\n", 27, 0);
+        }
       }
 
       else {
