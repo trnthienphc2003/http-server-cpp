@@ -52,82 +52,90 @@ int main(int argc, char **argv) {
   struct sockaddr_in client_addr;
   int client_addr_len = sizeof(client_addr);
   
-  std::cout << "Waiting for a client to connect...\n";
-  
-  int client = accept(server_fd, (struct sockaddr *) &client_addr, (socklen_t *) &client_addr_len);
-  std::cout << "Client connected\n";
-
-  if (client < 0) {
-    std::cerr << "Failed to accept client connection\n";
-    return 1;
-  }
-
-  char get_head[] = "GET ";
-  char *buffer = new char[BUF_LEN];
-  int bytes_received = recv(client, buffer, BUF_LEN, 0);
-
-  char *urlpath = nullptr;
-  urlpath = strstr(buffer, get_head);
-
-  char *location_user_agent = nullptr;
-  location_user_agent = strstr(buffer, "User-Agent: ");
-  // printf("User-Agent: %s\n", location_user_agent);
-  
-  char delimiter[] = " ";
-  
-  char *path = nullptr;
-  path = strtok(urlpath, delimiter);
-  path = strtok(NULL, delimiter);
-  printf("Path: %s\n", path);
-
-
-
-  if(strcmp(path, "/") == 0) {
-    // printf("[DEBUG]\n%s\n", buffer);
-    // printf("User Agent: %s\n", location_user_agent);
+  pid_t child_pid;
+  int client;
+  while(1) {
+    std::cout << "Waiting for a client to connect...\n";
+    client = accept(server_fd, (struct sockaddr *) &client_addr, (socklen_t *) &client_addr_len);
     
-    {
-      std::cout << "Client request \n";
-      send(client, "HTTP/1.1 200 OK\r\n\r\n", 20, 0);
+    if (client < 0) {
+      std::cerr << "Failed to accept client connection\n";
+      return 1;
     }
-  }
 
-  else if(strcmp(path, "/user-agent") == 0) {
-    if(strncmp(location_user_agent, "User-Agent: ", 12) == 0) {
-      std::cout << "Client requested user-agent\n";
-      // convert to stl c++ string
-      char *user_agent = location_user_agent;
-      user_agent += 12; // Move past "User-Agent: "
-      char *end_of_user_agent = strstr(user_agent, "\r\n");
-      *end_of_user_agent = '\0'; // Null-terminate the string
-      std::string user_agent_str(user_agent);
-      printf("User-Agent: %s\n", user_agent_str.c_str());
-  
-      std::string response = "HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: " + std::to_string(user_agent_str.size()) + "\r\n\r\n" + user_agent_str;
-      send(client, response.data(), response.size(), 0);
+    if((child_pid = fork()) == 0) {
+      close(server_fd);
+      std::cout << "Client connected\n";
+      char get_head[] = "GET ";
+      char *buffer = new char[BUF_LEN];
+      int bytes_received = recv(client, buffer, BUF_LEN, 0);
+
+      char *urlpath = nullptr;
+      urlpath = strstr(buffer, get_head);
+
+      char *location_user_agent = nullptr;
+      location_user_agent = strstr(buffer, "User-Agent: ");
+      // printf("User-Agent: %s\n", location_user_agent);
+      
+      char delimiter[] = " ";
+      
+      char *path = nullptr;
+      path = strtok(urlpath, delimiter);
+      path = strtok(NULL, delimiter);
+      printf("Path: %s\n", path);
+
+
+
+      if(strcmp(path, "/") == 0) {
+        // printf("[DEBUG]\n%s\n", buffer);
+        // printf("User Agent: %s\n", location_user_agent);
+        
+        {
+          std::cout << "Client request \n";
+          send(client, "HTTP/1.1 200 OK\r\n\r\n", 20, 0);
+        }
+      }
+
+      else if(strcmp(path, "/user-agent") == 0) {
+        if(strncmp(location_user_agent, "User-Agent: ", 12) == 0) {
+          std::cout << "Client requested user-agent\n";
+          // convert to stl c++ string
+          char *user_agent = location_user_agent;
+          user_agent += 12; // Move past "User-Agent: "
+          char *end_of_user_agent = strstr(user_agent, "\r\n");
+          *end_of_user_agent = '\0'; // Null-terminate the string
+          std::string user_agent_str(user_agent);
+          printf("User-Agent: %s\n", user_agent_str.c_str());
+      
+          std::string response = "HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: " + std::to_string(user_agent_str.size()) + "\r\n\r\n" + user_agent_str;
+          send(client, response.data(), response.size(), 0);
+        }
+      }
+
+      else if(strncmp("/echo/", path, 6) == 0) {
+        std::cout << "Client requested echo\n";
+        char *echo_string = nullptr;
+        echo_string = strtok(path, "/");
+        echo_string = strtok(NULL, "/");
+        printf("Echo string: %s\n", echo_string);
+
+        std::string response = "HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: " + std::to_string(strlen(echo_string)) + "\r\n\r\n" + echo_string;
+        send(client, response.data(), response.size(), 0);
+      }
+
+      else {
+        std::cout << "Client requested something else\n";
+        send(client, "HTTP/1.1 404 Not Found\r\n\r\n", 27, 0);
+      }
+
+      
+      // send(client, "HTTP/1.1 200 OK\r\n\r\n", 20, 0);
+      
+      delete []buffer;
     }
+    
   }
-
-  else if(strncmp("/echo/", path, 6) == 0) {
-    std::cout << "Client requested echo\n";
-    char *echo_string = nullptr;
-    echo_string = strtok(path, "/");
-    echo_string = strtok(NULL, "/");
-    printf("Echo string: %s\n", echo_string);
-
-    std::string response = "HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: " + std::to_string(strlen(echo_string)) + "\r\n\r\n" + echo_string;
-    send(client, response.data(), response.size(), 0);
-  }
-
-  else {
-    std::cout << "Client requested something else\n";
-    send(client, "HTTP/1.1 404 Not Found\r\n\r\n", 27, 0);
-  }
-
-  
-  // send(client, "HTTP/1.1 200 OK\r\n\r\n", 20, 0);
-  close(server_fd);
-  delete []buffer;
+  close(client); 
   // delete []urlpath;
   // delete []path;
 
