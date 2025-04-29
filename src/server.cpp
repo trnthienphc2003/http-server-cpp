@@ -93,6 +93,19 @@ int main(int argc, char **argv) {
     send(client, response.data(), response.size(), 0);
   }
 
+  else if(strncmp("/user-agent", path, 11) == 0) {
+    std::cout << "Client requested user-agent\n";
+    char *user_agent = nullptr;
+    user_agent = strstr(buffer, "User-Agent: ");
+    user_agent += 12; // Move past "User-Agent: "
+    char *end_of_user_agent = strstr(user_agent, "\r\n");
+    *end_of_user_agent = '\0'; // Null-terminate the string
+    printf("User-Agent: %s\n", user_agent);
+
+    std::string response = "HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: " + std::to_string(strlen(user_agent)) + "\r\n\r\n" + user_agent;
+    send(client, response.data(), response.size(), 0);
+  }
+
   else {
     std::cout << "Client requested something else\n";
     send(client, "HTTP/1.1 404 Not Found\r\n\r\n", 27, 0);
