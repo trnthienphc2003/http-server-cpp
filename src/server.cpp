@@ -85,6 +85,14 @@ int main(int argc, char **argv) {
   if(strcmp(path, "/") == 0) {
     // printf("[DEBUG]\n%s\n", buffer);
     // printf("User Agent: %s\n", location_user_agent);
+    
+    {
+      std::cout << "Client request \n";
+      send(client, "HTTP/1.1 200 OK\r\n\r\n", 20, 0);
+    }
+  }
+
+  else if(strcmp(path, "/user-agent") == 0) {
     if(strncmp(location_user_agent, "User-Agent: ", 12) == 0) {
       std::cout << "Client requested user-agent\n";
       // convert to stl c++ string
@@ -97,10 +105,6 @@ int main(int argc, char **argv) {
   
       std::string response = "HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: " + std::to_string(user_agent_str.size()) + "\r\n\r\n" + user_agent_str;
       send(client, response.data(), response.size(), 0);
-    }
-    else {
-      std::cout << "Client request \n";
-      send(client, "HTTP/1.1 200 OK\r\n\r\n", 20, 0);
     }
   }
 
