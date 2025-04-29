@@ -101,12 +101,12 @@ void HTTP_Server::run() {
                 bool keep_alive = false;
                 if(request.version == "HTTP/1.1") {
                     auto it = request.headers.find("Connection");
-                    keep_alive = (it == request.headers.end() || it->second == "close");
+                    keep_alive = ((it == request.headers.end()) || (it->second != "close"));
                 }
 
                 else if(request.version == "HTTP/1.0") {
                     auto it = request.headers.find("Connection");
-                    keep_alive = (it != request.headers.end() && it->second == "keep-alive");
+                    keep_alive = ((it != request.headers.end()) && (it->second == "keep-alive"));
                 }
 
                 HTTP_Response response = dispatch(request);
@@ -115,6 +115,7 @@ void HTTP_Server::run() {
                 }
 
                 else {
+                    std::cout << "Closing connection\n";
                     response.headers["Connection"] = "close";
                 }
 
@@ -125,6 +126,7 @@ void HTTP_Server::run() {
                 if(!keep_alive) break;
             }
             // Close the client socket
+            shutdown(client, SHUT_RDWR);
             close(client);
         }).detach();
     }
