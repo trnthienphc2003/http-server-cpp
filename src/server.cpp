@@ -116,22 +116,6 @@ int main(int argc, char **argv) {
         }
       }
 
-      else if(strcmp(path, "/user-agent") == 0) {
-        if(strncmp(location_user_agent, "User-Agent: ", 12) == 0) {
-          std::cout << "Client requested user-agent\n";
-          // convert to stl c++ string
-          char *user_agent = location_user_agent;
-          user_agent += 12; // Move past "User-Agent: "
-          char *end_of_user_agent = strstr(user_agent, "\r\n");
-          *end_of_user_agent = '\0'; // Null-terminate the string
-          std::string user_agent_str(user_agent);
-          printf("User-Agent: %s\n", user_agent_str.c_str());
-      
-          std::string response = "HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: " + std::to_string(user_agent_str.size()) + "\r\n\r\n" + user_agent_str;
-          send(client, response.data(), response.size(), 0);
-        }
-      }
-
       else if(strncmp("/echo/", path, 5) == 0) {
         std::cout << "Client requested echo\n";
         char *echo_string = nullptr;
@@ -150,14 +134,32 @@ int main(int argc, char **argv) {
         file_name = strtok(NULL, "/");
         printf("File name: %s\n", file_name);
 
+        printf("File name: %s\n", file_name);
         char *file_content = read_content_file(file_name);
         if(file_content) {
           std::string response = "HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: " + std::to_string(strlen(file_content)) + "\r\n\r\n" + file_content;
           send(client, response.data(), response.size(), 0);
+          delete []file_content;
         }
 
         else {
           send(client, "HTTP/1.1 404 Not Found\r\n\r\n", 27, 0);
+        }
+      }
+
+      else if(strcmp(path, "/user-agent") == 0) {
+        if(strncmp(location_user_agent, "User-Agent: ", 12) == 0) {
+          std::cout << "Client requested user-agent\n";
+          // convert to stl c++ string
+          char *user_agent = location_user_agent;
+          user_agent += 12; // Move past "User-Agent: "
+          char *end_of_user_agent = strstr(user_agent, "\r\n");
+          *end_of_user_agent = '\0'; // Null-terminate the string
+          std::string user_agent_str(user_agent);
+          printf("User-Agent: %s\n", user_agent_str.c_str());
+      
+          std::string response = "HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: " + std::to_string(user_agent_str.size()) + "\r\n\r\n" + user_agent_str;
+          send(client, response.data(), response.size(), 0);
         }
       }
 
