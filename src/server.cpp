@@ -30,6 +30,7 @@ char *read_content_file(const char *filename) {
 }
 
 int main(int argc, char **argv) {
+  printf("Arguments: %s\n", argv[0]);
   // Flush after every std::cout / std::cerr
   std::cout << std::unitbuf;
   std::cerr << std::unitbuf;
