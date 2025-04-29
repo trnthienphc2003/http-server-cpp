@@ -30,7 +30,7 @@ char *read_content_file(const char *filename) {
 }
 
 int main(int argc, char **argv) {
-  printf("Arguments: %s\n", argv[0]);
+  // printf("Arguments: %s\n", argv[2]);
   // Flush after every std::cout / std::cerr
   std::cout << std::unitbuf;
   std::cerr << std::unitbuf;
@@ -130,11 +130,16 @@ int main(int argc, char **argv) {
 
       else if(strncmp("/files/", path, 7) == 0) {
         std::cout << "Client requested file\n";
+
         char *file_name = nullptr;
         file_name = strtok(path, "/");
         file_name = strtok(NULL, "/");
         printf("File name: %s\n", file_name);
-        char *file_content = read_content_file(file_name);
+
+        std::string root_path = argv[2];
+        std::string file_path = root_path + "/" + file_name;
+
+        char *file_content = read_content_file(file_path.c_str());
         printf("File content: %s\n", file_content);
         if(file_content) {
           std::string response = "HTTP/1.1 200 OK\r\nContent-Type: application/octet-stream\r\nContent-Length: " + std::to_string(strlen(file_content)) + "\r\n\r\n" + file_content;
