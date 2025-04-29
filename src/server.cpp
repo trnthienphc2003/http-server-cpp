@@ -76,7 +76,13 @@ int main(int argc, char **argv) {
   path = strtok(NULL, delimiter);
   printf("Path: %s\n", path);
 
-  if(strncmp("/echo/", path, 6) == 0) {
+
+  if(strcmp(path, "/") == 0) {
+    std::cout << "Client request \n";
+    send(client, "HTTP/1.1 200 OK\r\n\r\n", 20, 0);
+  }
+
+  else if(strncmp("/echo/", path, 6) == 0) {
     std::cout << "Client requested echo\n";
     char *echo_string = nullptr;
     echo_string = strtok(path, "/");
