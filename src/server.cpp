@@ -66,19 +66,25 @@ int main(int argc, char **argv) {
   char *buffer = new char[BUF_LEN];
   int bytes_received = recv(client, buffer, BUF_LEN, 0);
 
-  char *urlpath = new char[bytes_received + 1];
+  char *urlpath = nullptr;
   urlpath = strstr(buffer, get_head);
   
   char delimiter[] = " ";
   
-  char *path = new char[bytes_received + 1];
+  char *path = nullptr;
   path = strtok(urlpath, delimiter);
   path = strtok(NULL, delimiter);
   printf("Path: %s\n", path);
 
-  if(strcmp(path, "/") == 0) {
-    std::cout << "Client requested index.html\n";
-    send(client, "HTTP/1.1 200 OK\r\n\r\n", 20, 0); 
+  if(strncmp("/echo/", path, 6) == 0) {
+    std::cout << "Client requested echo\n";
+    char *echo_string = nullptr;
+    echo_string = strtok(path, "/");
+    echo_string = strtok(NULL, "/");
+    printf("Echo string: %s\n", echo_string);
+
+    std::string response = "HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: " + std::to_string(strlen(echo_string)) + "\r\n\r\n" + echo_string;
+    send(client, response.data(), response.size(), 0);
   }
 
   else {
@@ -90,8 +96,8 @@ int main(int argc, char **argv) {
   // send(client, "HTTP/1.1 200 OK\r\n\r\n", 20, 0);
   close(server_fd);
   delete []buffer;
-  delete []urlpath;
-  delete []path;  
+  // delete []urlpath;
+  // delete []path;
 
 
   return 0;
