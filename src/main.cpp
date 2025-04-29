@@ -1,4 +1,43 @@
 #include "server.hpp"
+#include <stdexcept>
+#include <zlib.h>
+
+static std::string compress_gzip(std::string &data) {
+    /*
+        Encode the data using gzip
+        This function should handle gzip compression
+    */
+
+    z_stream zstream{};
+    if(deflateInit2(&zstream, Z_DEFAULT_COMPRESSION, Z_DEFLATED, 15 + 16, 8, Z_DEFAULT_STRATEGY) != Z_OK) {
+        throw std::runtime_error("Failed to initialize zlib");
+    }
+
+    zstream.next_in   = reinterpret_cast<Bytef*>(const_cast<char*>(data.data()));
+    zstream.avail_in  = data.size();
+
+    std::string out;
+    out.reserve(data.size() / 2);  // heuristic
+
+    char buffer[GZIP_BUF_LEN];
+    int ret;
+    do {
+        zstream.next_out  = reinterpret_cast<Bytef*>(buffer);
+        zstream.avail_out = sizeof(buffer);
+
+        ret = deflate(&zstream, Z_FINISH);
+        if (ret != Z_OK && ret != Z_STREAM_END) {
+            deflateEnd(&zstream);
+            throw std::runtime_error("deflate failed");
+        }
+
+        std::size_t have = sizeof(buffer) - zstream.avail_out;
+        out.append(buffer, have);
+    } while (ret != Z_STREAM_END);
+
+    deflateEnd(&zstream);
+    return out;
+}
 
 int main(int argc, char **argv) {
     // std::string root_path = argv[2];
@@ -19,7 +58,10 @@ int main(int argc, char **argv) {
 
         std::string msg = request.path.substr(6);
         // std::cout << "Message: " << msg << "\n";
-        if(request.encoding_scheme != "") {
+        if(request.encoding_scheme == "gzip") {
+            // Compress the message using gzip
+            std::string compressed_msg = compress_gzip(msg);
+
             return HTTP_Response {
                 (int)HTTP_STATUS_CODE::OK,
                 "OK",
@@ -30,9 +72,9 @@ int main(int argc, char **argv) {
                     "Content-Encoding", request.encoding_scheme
                 },
                 {
-                    "Content-Length", std::to_string(msg.size())
+                    "Content-Length", std::to_string(compressed_msg.size())
                 }},
-                msg
+                compressed_msg
             };
         }
         
@@ -114,7 +156,12 @@ int main(int argc, char **argv) {
         };
     });
 
-    server.run();
+    try {
+        server.run();
+    } catch(const std::exception &e) {
+        std::cerr << "Error: " << e.what() << "\n";
+        return 1;
+    }
     return 0;
 }
   

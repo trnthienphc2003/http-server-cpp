@@ -8,6 +8,7 @@
 #include <arpa/inet.h>      // sockaddr_in, htons(), INADDR_ANY
 
 constexpr int BUF_LEN = 1024;
+constexpr int GZIP_BUF_LEN = 32768;
 enum class HTTP_STATUS_CODE{
     OK = 200,
     CREATED = 201,
