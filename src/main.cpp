@@ -1,51 +1,15 @@
-#include "server.hpp"
+#include <http_server/server.hpp>
+#include <http_server/compression/registry.hpp>
+#include <http_server/compression/gzip.hpp>
+#include <utils/file_utils.hpp>
+#include <utils/path_validation.hpp>
 #include <stdexcept>
-#include <zlib.h>
 #include <filesystem>
-
-static std::string compress_gzip(std::string &data) {
-    try {
-        z_stream zstream{};
-        if(deflateInit2(&zstream, Z_DEFAULT_COMPRESSION, Z_DEFLATED, 15 + 16, 8, Z_DEFAULT_STRATEGY) != Z_OK) {
-            throw std::runtime_error("Failed to initialize zlib");
-        }
-
-        zstream.next_in   = reinterpret_cast<Bytef*>(const_cast<char*>(data.data()));
-        zstream.avail_in  = data.size();
-
-        std::string out;
-        out.reserve(data.size() / 2);  // heuristic
-
-        char buffer[GZIP_BUF_LEN];
-        int ret;
-        do {
-            zstream.next_out  = reinterpret_cast<Bytef*>(buffer);
-            zstream.avail_out = sizeof(buffer);
-
-            ret = deflate(&zstream, Z_FINISH);
-            if (ret != Z_OK && ret != Z_STREAM_END) {
-                deflateEnd(&zstream);
-                throw std::runtime_error("Deflate failed: " + std::string(zstream.msg ? zstream.msg : "unknown error"));
-            }
-
-            std::size_t have = sizeof(buffer) - zstream.avail_out;
-            out.append(buffer, have);
-        } while (ret != Z_STREAM_END);
-
-        deflateEnd(&zstream);
-        return out;
-    } catch (const std::exception& e) {
-        std::cerr << "Compression error: " << e.what() << std::endl;
-        // In case of compression failure, return the original data
-        // This is safer than returning an empty string
-        return data;
-    }
-}
 
 int main(int argc, char **argv) {
     try {
         // Parse command line arguments with better error handling
-        uint16_t port = 4221; // Default port
+        uint16_t port = http_server::config::DEFAULT_PORT; // Default port
         std::string root_path = "."; // Default directory
         
         for (int i = 1; i < argc; ++i) {
@@ -77,49 +41,53 @@ int main(int argc, char **argv) {
         if (!std::filesystem::is_directory(root_path)) {
             throw std::runtime_error("Specified path is not a directory: " + root_path);
         }
-        
+
+        // Compressors registration
+        http_server::compression::CompressionRegistry::register_compressor(std::make_unique<http_server::compression::GzipCompressor>());
+
         // Create and configure the server
-        HTTP_Server server(port);
+        http_server::HTTP_Server server(port, root_path);
         std::cout << "Starting HTTP server on port " << port << " with root directory: " << root_path << std::endl;
         
         // Register routes
-        server.route("/", [](const HTTP_Request &request) {
-            return HTTP_Response {
-                (int)HTTP_STATUS_CODE::OK,
+        server.add_route("GET", "/", [&](const http_server::HTTP_Request &request, const http_server::Params &params) {
+            return http_server::HTTP_Response {
+                (int)http_server::HTTP_STATUS_CODE::OK,
                 "OK",
                 {},
-                "",
+                ""
             };
         });
 
-        server.route("/echo/", [&](const HTTP_Request &request) {
+        server.add_route("GET", "/echo/:msg", [&](const http_server::HTTP_Request &request, const http_server::Params &params) {
             try {
                 std::cout << "Client requested echo\n";
 
                 std::string msg = request.path.substr(6);
                 
-                if(request.encoding_scheme == "gzip") {
+                auto *c = http_server::compression::CompressionRegistry::select_compressor(request.encoding_scheme);
+                if(c) {
                     // Compress the message using gzip
-                    std::string compressed_msg = compress_gzip(msg);
-
-                    return HTTP_Response {
-                        (int)HTTP_STATUS_CODE::OK,
-                        "OK",
-                        {{
-                            "Content-Type", "text/plain"
-                        },
-                        {
-                            "Content-Encoding", request.encoding_scheme
-                        },
-                        {
-                            "Content-Length", std::to_string(compressed_msg.size())
-                        }},
-                        compressed_msg
-                    };
+                    if(auto compressed_msg = c->compress(msg)) {
+                        return http_server::HTTP_Response {
+                            (int)http_server::HTTP_STATUS_CODE::OK,
+                            "OK",
+                            {{
+                                "Content-Type", "text/plain"
+                            },
+                            {
+                                "Content-Encoding", request.encoding_scheme
+                            },
+                            {
+                                "Content-Length", std::to_string((*compressed_msg).size())
+                            }},
+                            *compressed_msg
+                        };
+                    }
                 }
                 
-                return HTTP_Response {
-                    (int)HTTP_STATUS_CODE::OK,
+                return http_server::HTTP_Response {
+                    (int)http_server::HTTP_STATUS_CODE::OK,
                     "OK",
                     {{
                         "Content-Type", "text/plain"
@@ -131,8 +99,8 @@ int main(int argc, char **argv) {
                 };
             } catch (const std::exception& e) {
                 std::cerr << "Error in echo handler: " << e.what() << std::endl;
-                return HTTP_Response {
-                    (int)HTTP_STATUS_CODE::INTERNAL_SERVER_ERROR,
+                return http_server::HTTP_Response {
+                    (int)http_server::HTTP_STATUS_CODE::INTERNAL_SERVER_ERROR,
                     "Internal Server Error",
                     {},
                     "An error occurred processing your request"
@@ -140,81 +108,122 @@ int main(int argc, char **argv) {
             }
         });
 
-        server.route("/files/", [&](const HTTP_Request &request){
-            std::string name = request.path.substr(7);
+        server.add_route("GET", "/files/:name", [&](const http_server::HTTP_Request &request, const http_server::Params &params) {
             try {
+                std::string name = params.at("name");
                 if(!std::filesystem::path(name).has_filename()) {
                     throw std::invalid_argument("Invalid file path");
                 }
                 
                 // Use our path validation method to prevent directory traversal
-                std::string validated_path = server.validate_file_path(root_path, name);
+                std::string validated_path = http_server::path_validation::validate_file_path(root_path, name);
 
-                if(request.method == "GET") {
-                    if(auto content = server.read_file_interface(validated_path)) {
-                        return HTTP_Response {
-                            (int)HTTP_STATUS_CODE::OK,
-                            "OK",
-                            {{
-                                "Content-Type", "application/octet-stream"
-                            },
-                            {
-                                "Content-Length", std::to_string(content->size())
-                            }},
-                            *content
-                        };
-                    }
-                } else if(request.method == "POST") {
-                    std::string content = request.body;
-
-                    server.save_file(validated_path, content);
-                    return HTTP_Response {
-                        (int)HTTP_STATUS_CODE::CREATED,
-                        "Created",
-                        {},
-                        "",
+                if(auto content = http_server::file_utils::read_file(validated_path)) {
+                    return http_server::HTTP_Response {
+                        (int)http_server::HTTP_STATUS_CODE::OK,
+                        "OK",
+                        {{
+                            "Content-Type", "application/octet-stream"
+                        },
+                        {
+                            "Content-Length", std::to_string(content->size())
+                        }},
+                        *content
                     };
                 }
             } catch(const std::runtime_error &e) {
                 std::string error_message = e.what();
                 // Check if this was a directory traversal attempt
                 if(error_message.find("traversal") != std::string::npos) {
-                    return HTTP_Response {
-                        (int)HTTP_STATUS_CODE::FORBIDDEN,
+                    return http_server::HTTP_Response {
+                        (int)http_server::HTTP_STATUS_CODE::FORBIDDEN,
                         "Forbidden",
                         {},
                         "Access denied: Directory traversal attempt detected",
                     };
                 }
-                return HTTP_Response {
-                    (int)HTTP_STATUS_CODE::BAD_REQUEST,
+                return http_server::HTTP_Response {
+                    (int)http_server::HTTP_STATUS_CODE::BAD_REQUEST,
                     "Bad Request",
                     {},
                     error_message,
                 };
             } catch(const std::exception &e) {
-                return HTTP_Response {
-                    (int)HTTP_STATUS_CODE::BAD_REQUEST,
+                return http_server::HTTP_Response {
+                    (int)http_server::HTTP_STATUS_CODE::BAD_REQUEST,
                     "Bad Request",
                     {},
                     e.what(),
                 };
             }
 
-            return HTTP_Response {
-                (int)HTTP_STATUS_CODE::NOT_FOUND,
+            return http_server::HTTP_Response {
+                (int)http_server::HTTP_STATUS_CODE::NOT_FOUND,
                 "Not Found",
                 {},
                 "",
             };
         });
 
-        server.route("/user-agent", [&](const HTTP_Request &request) {
+        server.add_route("POST", "/files/:name", [&](const http_server::HTTP_Request &request, const http_server::Params &params) {
+            try {
+                std::string name = params.at("name");
+                if(!std::filesystem::path(name).has_filename()) {
+                    throw std::invalid_argument("Invalid file path");
+                }
+                
+                // Use our path validation method to prevent directory traversal
+                std::string validated_path = http_server::path_validation::validate_file_path(root_path, name);
+
+                std::string content = request.body;
+
+                http_server::file_utils::save_file(validated_path, content);
+                return http_server::HTTP_Response {
+                    (int)http_server::HTTP_STATUS_CODE::CREATED,
+                    "Created",
+                    {},
+                    "",
+                };
+            } catch(const std::runtime_error &e) {
+                std::string error_message = e.what();
+                // Check if this was a directory traversal attempt
+                if(error_message.find("traversal") != std::string::npos) {
+                    return http_server::HTTP_Response {
+                        (int)http_server::HTTP_STATUS_CODE::FORBIDDEN,
+                        "Forbidden",
+                        {},
+                        "Access denied: Directory traversal attempt detected",
+                    };
+                }
+                return http_server::HTTP_Response {
+                    (int)http_server::HTTP_STATUS_CODE::BAD_REQUEST,
+                    "Bad Request",
+                    {},
+                    error_message,
+                };
+            } catch(const std::exception &e) {
+                return http_server::HTTP_Response {
+                    (int)http_server::HTTP_STATUS_CODE::BAD_REQUEST,
+                    "Bad Request",
+                    {},
+                    e.what(),
+                };
+            }
+
+            return http_server::HTTP_Response {
+                (int)http_server::HTTP_STATUS_CODE::NOT_FOUND,
+                "Not Found",
+                {},
+                "",
+            };
+        });
+
+        server.add_route("GET", "/user-agent", [&](const http_server::HTTP_Request &request, const http_server::Params &params) {
             try {
                 auto it = request.headers.find("User-Agent");
                 if(it != request.headers.end()) {
-                    return HTTP_Response {
-                        (int)HTTP_STATUS_CODE::OK,
+                    return http_server::HTTP_Response {
+                        (int)http_server::HTTP_STATUS_CODE::OK,
                         "OK",
                         {{
                             "Content-Type", "text/plain"
@@ -226,23 +235,22 @@ int main(int argc, char **argv) {
                     };
                 }
 
-                return HTTP_Response {
-                    (int)HTTP_STATUS_CODE::BAD_REQUEST,
+                return http_server::HTTP_Response {
+                    (int)http_server::HTTP_STATUS_CODE::BAD_REQUEST,
                     "Bad Request",
                     {},
                     "User-Agent header not provided"
                 };
             } catch (const std::exception& e) {
                 std::cerr << "Error in user-agent handler: " << e.what() << std::endl;
-                return HTTP_Response {
-                    (int)HTTP_STATUS_CODE::INTERNAL_SERVER_ERROR,
+                return http_server::HTTP_Response {
+                    (int)http_server::HTTP_STATUS_CODE::INTERNAL_SERVER_ERROR,
                     "Internal Server Error",
                     {},
                     "An error occurred processing your request"
                 };
             }
         });
-
         // Run the server
         server.run();
     } catch(const std::exception &e) {
