@@ -23,12 +23,12 @@ include_directories(
 # Sources
 set(SERVER_SOURCES
   src/main.cpp
-  src/server.cpp
-  src/request.cpp
-  src/response.cpp
-  src/router.cpp
-  src/compression/registry.cpp
-  src/compression/gzip.cpp
+  src/http_server/server.cpp
+  src/http_server/request.cpp
+  src/http_server/response.cpp
+  src/http_server/router.cpp
+  src/http_server/compression/registry.cpp
+  src/http_server/compression/gzip.cpp
   src/utils/file_utils.cpp
   src/utils/path_validation.cpp
 )

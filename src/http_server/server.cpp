@@ -114,6 +114,7 @@ void http_server::HTTP_Server::handle_client_connection(int client_fd, const soc
     inet_ntop(AF_INET, &client_address.sin_addr, client_ip, INET_ADDRSTRLEN);
     std::cout << "New client connection from " << client_ip << std::endl;
     
+    int requests = 0;
     while(keep_alive) {
         try {
             // Clear previous data
@@ -191,7 +192,7 @@ void http_server::HTTP_Server::handle_client_connection(int client_fd, const soc
             std::cout << client_ip << " - " << request.method << " " << request.path 
                       << " - " << response.status_code << std::endl;
             
-            if(!keep_alive) {
+            if(!keep_alive || ++requests >= http_server::config::MAX_KEEP_ALIVE_REQUESTS) {
                 break;
             }
         } catch (const std::exception& e) {
